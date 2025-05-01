@@ -19,14 +19,38 @@ import 'package:image_picker/image_picker.dart';
 ///     para email, teléfono y nombre.
 ///
 /// Al enviar el formulario se realiza:
-///   1. POST a https://bug-report.test/bug-report enviando el comentario y
+///   1. POST a la URL configurada enviando el comentario y
 ///      datos de contacto (si se habilitó).
-///      La respuesta es un JSON con { report: UUID }.
-///   2. Por cada imagen adjunta se realiza un PUT a https://bug-report.test/bug-report/UUID
+///      La respuesta es un JSON con { id: UUID }.
+///   2. Por cada imagen adjunta se realiza un PUT a la URL configurada con el UUID
 ///      que envía la imagen.
 /// El plugin incluye manejo de errores, confirmación de acciones y bloqueo
 /// de salida mientras se suben archivos.
 class BugReportPlugin {
+  /// Configuración del plugin
+  static String? _host;
+  static String? _collection;
+  static String? _apiKey;
+  static String? _package;
+
+  /// Configura el plugin con los parámetros necesarios
+  ///
+  /// @param host URL base del servidor Pocketbase
+  /// @param collection Nombre de la colección en Pocketbase
+  /// @param apiKey API key para autenticación
+  /// @param package Identificador del paquete
+  static void configure({
+    required String host,
+    required String collection,
+    required String apiKey,
+    required String package,
+  }) {
+    _host = host;
+    _collection = collection;
+    _apiKey = apiKey;
+    _package = package;
+  }
+
   /// Método estático para mostrar la vista de reporte de bug.
   ///
   /// Se puede usar en un onPressed:
@@ -36,6 +60,24 @@ class BugReportPlugin {
   /// }
   /// ```
   static void bugReport(BuildContext context) {
+    // Verificar que el plugin esté configurado
+    if (_host == null || _collection == null || _apiKey == null || _package == null) {
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text("Error de configuración"),
+          content: Text("El plugin no ha sido configurado correctamente. Utilice BugReportPlugin.configure() antes de llamar a bugReport()."),
+          actions: [
+            TextButton(
+              child: Text("Aceptar"),
+              onPressed: () => Navigator.of(context).pop(),
+            )
+          ],
+        ),
+      );
+      return;
+    }
+    
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => BugReportForm(),
@@ -193,52 +235,63 @@ class _BugReportFormState extends State<BugReportForm> {
   /// Realiza la petición POST para crear el reporte.
   ///
   /// Envía los datos (comentario y datos de contacto si corresponden)
-  /// a la URL: https://bug-report.test/bug-report y retorna el UUID del reporte.
+  /// a la URL configurada y retorna el UUID del reporte.
   Future<String> _createReport() async {
-    final uri = Uri.parse("http://bug-report.test/api/bug-reports");
+    // Verificar que el plugin esté configurado
+    if (BugReportPlugin._host == null || 
+        BugReportPlugin._collection == null || 
+        BugReportPlugin._apiKey == null || 
+        BugReportPlugin._package == null) {
+      throw Exception("El plugin no está configurado correctamente");
+    }
+    
+    final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records");
     final httpClient = HttpClient();
     final request = await httpClient.postUrl(uri);
 
     request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
+    request.headers.set("apikey", BugReportPlugin._apiKey!);
 
+    // Crear el payload según la estructura de Pocketbase
     final Map<String, dynamic> payload = {
+      "email": _contactMe ? _emailController.text.trim() : "test",
+      "telefono": _contactMe ? _phoneController.text.trim() : "test",
+      "nombre": _contactMe ? _nameController.text.trim() : "test",
+      "package": BugReportPlugin._package,
       "comentario": _commentController.text.trim(),
     };
-    if (_contactMe) {
-      payload["email"] = _emailController.text.trim();
-      payload["telefono"] = _phoneController.text.trim();
-      payload["nombre"] = _nameController.text.trim();
-    }
+    
     request.add(utf8.encode(json.encode(payload)));
 
     final response = await request.close();
     final responseBody = await response.transform(utf8.decoder).join();
-    if (response.statusCode != 200) {
-      throw Exception("Error en POST: ${response.statusCode}");
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception("Error en POST: ${response.statusCode} - $responseBody");
     }
     final data = json.decode(responseBody);
     httpClient.close();
-    if (data["report"] == null) {
+    if (data["id"] == null) {
       throw Exception("Respuesta inválida del servidor");
     }
-    return data["report"];
+    return data["id"];
   }
 
   /// Realiza la petición PUT para subir una imagen al reporte.
   ///
-  /// Se envía a la URL https://bug-report.test/bug-report/{reportId}
+  /// Se envía a la URL configurada con el ID del reporte
   /// con el contenido de la imagen en formato JPEG.
   Future<void> _uploadImage(String reportId, Uint8List imageBytes) async {
-    final uri = Uri.parse("http://bug-report.test/api/bug-reports/$reportId");
+    final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records/$reportId");
     final httpClient = HttpClient();
     final request = await httpClient.putUrl(uri);
 
     // Se asume que la imagen es JPEG; ajustar según sea necesario
     request.headers.set(HttpHeaders.contentTypeHeader, "image/jpeg");
+    request.headers.set("apikey", BugReportPlugin._apiKey!);
     request.add(imageBytes);
 
     final response = await request.close();
-    if (response.statusCode != 200) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception("Error al subir imagen. Código: ${response.statusCode}");
     }
     httpClient.close();
@@ -304,6 +357,9 @@ class _BugReportFormState extends State<BugReportForm> {
                     }
                     return null;
                   },
+                  onTapOutside: (event) {
+                    FocusScope.of(context).unfocus();
+                  },
                 ),
                 SizedBox(height: 16),
                 // Toggle para "Deseas ser contactado"
@@ -324,6 +380,9 @@ class _BugReportFormState extends State<BugReportForm> {
                       labelText: "Email",
                       border: OutlineInputBorder(),
                     ),
+                    onTapOutside: (event) {
+                    FocusScope.of(context).unfocus();
+                  },
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -332,6 +391,9 @@ class _BugReportFormState extends State<BugReportForm> {
                       labelText: "Teléfono",
                       border: OutlineInputBorder(),
                     ),
+                    onTapOutside: (event) {
+                    FocusScope.of(context).unfocus();
+                  },
                   ),
                   SizedBox(height: 8),
                   TextFormField(
@@ -340,6 +402,9 @@ class _BugReportFormState extends State<BugReportForm> {
                       labelText: "Nombre",
                       border: OutlineInputBorder(),
                     ),
+                    onTapOutside: (event) {
+                    FocusScope.of(context).unfocus();
+                  },
                   ),
                   SizedBox(height: 16),
                 ],
