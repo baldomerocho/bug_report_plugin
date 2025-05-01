@@ -30,10 +30,10 @@ class BugReportPlugin {
   static String? _collection;
   static String? _apiKey;
   static String? _package;
-  
+
   /// Text dictionary for customizing UI text elements
   static Map<String, String> _textDictionary = defaultTextDictionary;
-  
+
   /// Default text dictionary with English text
   static const Map<String, String> defaultTextDictionary = {
     // Dialog titles
@@ -41,22 +41,26 @@ class BugReportPlugin {
     'error_title': 'Error',
     'confirmation_title': 'Confirmation',
     'report_sent_title': 'Report Sent',
-    
+
     // Dialog messages
-    'configuration_error_message': 'The plugin has not been properly configured. Use BugReportPlugin.configure() before calling bugReport().',
+    'configuration_error_message':
+        'The plugin has not been properly configured. Use BugReportPlugin.configure() before calling bugReport().',
     'report_sent_message': 'The report was sent successfully.',
-    'cancel_confirmation_message': 'Are you sure you want to cancel the report? All entered data will be lost.',
-    'submit_confirmation_message': 'Do you want to send the report? The entered data will be used to improve the app.',
-    
+    'cancel_confirmation_message':
+        'Are you sure you want to cancel the report? All entered data will be lost.',
+    'submit_confirmation_message':
+        'Do you want to send the report? The entered data will be used to improve the app.',
+
     // Button labels
     'ok_button': 'OK',
     'cancel_button': 'Cancel',
     'submit_button': 'Submit report',
     'add_image_button': 'Add image',
-    
+
     // Form labels
     'app_bar_title': 'Report a Bug',
-    'form_intro': 'You are reporting an error to help improve the quality of the app.',
+    'form_intro':
+        'You are reporting an error to help improve the quality of the app.',
     'comment_label': 'Comment *',
     'comment_validation': 'Comment is required.',
     'contact_toggle': 'Would you like to be contacted?',
@@ -65,7 +69,7 @@ class BugReportPlugin {
     'name_label': 'Name',
     'attach_images_label': 'Attach images:',
     'no_images_label': 'No images have been added.',
-    
+
     // Loading state
     'sending_report': 'Sending report...',
     'please_wait': 'Please wait a moment',
@@ -89,7 +93,7 @@ class BugReportPlugin {
     _collection = collection;
     _apiKey = apiKey;
     _package = package;
-    
+
     // If custom text dictionary is provided, merge it with the default
     if (textDictionary != null) {
       _textDictionary = Map.from(defaultTextDictionary)..addAll(textDictionary);
@@ -113,7 +117,10 @@ class BugReportPlugin {
   /// ```
   static void bugReport(BuildContext context) {
     // Verify that the plugin is configured
-    if (_host == null || _collection == null || _apiKey == null || _package == null) {
+    if (_host == null ||
+        _collection == null ||
+        _apiKey == null ||
+        _package == null) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
@@ -129,7 +136,7 @@ class BugReportPlugin {
       );
       return;
     }
-    
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const BugReportForm(),
@@ -190,7 +197,7 @@ class _BugReportFormState extends State<BugReportForm> {
   Future<void> _pickImage() async {
     try {
       final XFile? pickedFile =
-      await _picker.pickImage(source: ImageSource.gallery);
+          await _picker.pickImage(source: ImageSource.gallery);
       if (pickedFile != null) {
         final bytes = await pickedFile.readAsBytes();
         setState(() {
@@ -222,22 +229,22 @@ class _BugReportFormState extends State<BugReportForm> {
   /// Shows a confirmation dialog with [message] and returns true/false.
   Future<bool> _showConfirmation(String message) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(BugReportPlugin.getText('confirmation_title')),
-        content: Text(message),
-        actions: [
-          TextButton(
-            child: Text(BugReportPlugin.getText('cancel_button')),
-            onPressed: () => Navigator.of(context).pop(false),
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text(BugReportPlugin.getText('confirmation_title')),
+            content: Text(message),
+            actions: [
+              TextButton(
+                child: Text(BugReportPlugin.getText('cancel_button')),
+                onPressed: () => Navigator.of(context).pop(false),
+              ),
+              TextButton(
+                child: Text(BugReportPlugin.getText('ok_button')),
+                onPressed: () => Navigator.of(context).pop(true),
+              ),
+            ],
           ),
-          TextButton(
-            child: Text(BugReportPlugin.getText('ok_button')),
-            onPressed: () => Navigator.of(context).pop(true),
-          ),
-        ],
-      ),
-    ) ??
+        ) ??
         false;
   }
 
@@ -248,7 +255,7 @@ class _BugReportFormState extends State<BugReportForm> {
   Future<void> _submitReport() async {
     // Ensure the keyboard is closed before continuing
     FocusScope.of(context).unfocus();
-    
+
     if (_commentController.text.trim().isEmpty) {
       _showError(BugReportPlugin.getText('comment_validation'));
       return;
@@ -263,10 +270,10 @@ class _BugReportFormState extends State<BugReportForm> {
     setState(() {
       _formSubmitted = true;
     });
-    
+
     // Wait for the keyboard to finish closing before showing the loader
     await Future.delayed(const Duration(milliseconds: 300));
-    
+
     setState(() {
       _isUploading = true;
       _cancelled = false;
@@ -275,17 +282,18 @@ class _BugReportFormState extends State<BugReportForm> {
     try {
       // Perform the POST to create the report with images
       final reportId = await _createReportWithImages();
-      
+
       if (!_cancelled) {
         // We don't hide the loader here, as the success dialog will be shown on top
-        
+
         // Show the success dialog
         await showDialog(
           context: context,
           barrierDismissible: false, // Prevent closing by tapping outside
           builder: (_) => AlertDialog(
             title: Text(BugReportPlugin.getText('report_sent_title')),
-            content: Text("${BugReportPlugin.getText('report_sent_message')}\nID: $reportId"),
+            content: Text(
+                "${BugReportPlugin.getText('report_sent_message')}\nID: $reportId"),
             actions: [
               TextButton(
                 child: Text(BugReportPlugin.getText('ok_button')),
@@ -302,7 +310,8 @@ class _BugReportFormState extends State<BugReportForm> {
       if (mounted) {
         setState(() {
           _isUploading = false;
-          _formSubmitted = false; // Allow editing the form again in case of error
+          _formSubmitted =
+              false; // Allow editing the form again in case of error
         });
         _showError("Error sending report: $e");
       }
@@ -315,80 +324,84 @@ class _BugReportFormState extends State<BugReportForm> {
   /// to the configured URL using multipart/form-data for Pocketbase compatibility.
   Future<String> _createReportWithImages() async {
     // Verify that the plugin is configured
-    if (BugReportPlugin._host == null || 
-        BugReportPlugin._collection == null || 
-        BugReportPlugin._apiKey == null || 
+    if (BugReportPlugin._host == null ||
+        BugReportPlugin._collection == null ||
+        BugReportPlugin._apiKey == null ||
         BugReportPlugin._package == null) {
       throw Exception("The plugin is not properly configured");
     }
-    
-    final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records");
-    
+
+    final uri = Uri.parse(
+        "${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records");
+
     // Create a unique boundary for the multipart form
     final boundary = '----${DateTime.now().millisecondsSinceEpoch}----';
-    
+
     // Create the request body manually
     final bodyData = <int>[];
-    
+
     // Function to add a text field to the body
     void addTextPart(String name, String value) {
       bodyData.addAll(utf8.encode('--$boundary\r\n'));
-      bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"\r\n\r\n'));
+      bodyData.addAll(
+          utf8.encode('Content-Disposition: form-data; name="$name"\r\n\r\n'));
       bodyData.addAll(utf8.encode('$value\r\n'));
     }
-    
+
     // Function to add an image to the body
     void addImagePart(String name, Uint8List bytes, int index) {
       bodyData.addAll(utf8.encode('--$boundary\r\n'));
-      bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"; filename="image_$index.jpg"\r\n'));
+      bodyData.addAll(utf8.encode(
+          'Content-Disposition: form-data; name="$name"; filename="image_$index.jpg"\r\n'));
       bodyData.addAll(utf8.encode('Content-Type: image/jpeg\r\n\r\n'));
       bodyData.addAll(bytes);
       bodyData.addAll(utf8.encode('\r\n'));
     }
-    
+
     // Add text fields
     addTextPart('email', _contactMe ? _emailController.text.trim() : "test");
     addTextPart('telefono', _contactMe ? _phoneController.text.trim() : "test");
     addTextPart('nombre', _contactMe ? _nameController.text.trim() : "test");
     addTextPart('package', BugReportPlugin._package!);
     addTextPart('comentario', _commentController.text.trim());
-    
+
     // Add images if they exist
     for (int i = 0; i < _images.length; i++) {
       if (_cancelled) break;
       addImagePart('imagenes', _images[i], i);
     }
-    
+
     // Finalize the multipart body
     bodyData.addAll(utf8.encode('--$boundary--\r\n'));
-    
+
     // Create an HTTP client and a request
     final httpClient = HttpClient();
     final request = await httpClient.postUrl(uri);
-    
+
     // Set headers
     request.headers.set("apikey", BugReportPlugin._apiKey!);
-    request.headers.set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
+    request.headers.set(HttpHeaders.contentTypeHeader,
+        'multipart/form-data; boundary=$boundary');
     request.contentLength = bodyData.length;
-    
+
     // Send the data
     request.add(Uint8List.fromList(bodyData));
-    
+
     // Send the request and process the response
     final response = await request.close();
     final responseBody = await response.transform(utf8.decoder).join();
-    
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception("Error in POST: ${response.statusCode} - $responseBody");
     }
-    
+
     final data = json.decode(responseBody);
     httpClient.close();
-    
+
     if (data["id"] == null) {
       throw Exception("Invalid server response");
     }
-    
+
     return data["id"];
   }
 
@@ -419,10 +432,10 @@ class _BugReportFormState extends State<BugReportForm> {
               onPressed: _isUploading
                   ? null
                   : () async {
-                if (await _confirmCancel()) {
-                  Navigator.of(context).pop();
-                }
-              },
+                      if (await _confirmCancel()) {
+                        Navigator.of(context).pop();
+                      }
+                    },
             )
           ],
         ),
@@ -454,14 +467,16 @@ class _BugReportFormState extends State<BugReportForm> {
                           maxLines: null,
                           minLines: 1,
                           autofocus: false, // Prevent automatic focus
-                          readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                          readOnly:
+                              _formSubmitted, // Disable editing if the form has been submitted
                           decoration: InputDecoration(
                             labelText: BugReportPlugin.getText('comment_label'),
                             border: const OutlineInputBorder(),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return BugReportPlugin.getText('comment_validation');
+                              return BugReportPlugin.getText(
+                                  'comment_validation');
                             }
                             return null;
                           },
@@ -472,7 +487,8 @@ class _BugReportFormState extends State<BugReportForm> {
                         const SizedBox(height: 16),
                         // Toggle for "Would you like to be contacted?"
                         SwitchListTile(
-                          title: Text(BugReportPlugin.getText('contact_toggle')),
+                          title:
+                              Text(BugReportPlugin.getText('contact_toggle')),
                           value: _contactMe,
                           onChanged: (val) {
                             setState(() {
@@ -484,7 +500,8 @@ class _BugReportFormState extends State<BugReportForm> {
                         if (_contactMe) ...[
                           TextFormField(
                             controller: _emailController,
-                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            readOnly:
+                                _formSubmitted, // Disable editing if the form has been submitted
                             decoration: InputDecoration(
                               labelText: BugReportPlugin.getText('email_label'),
                               border: const OutlineInputBorder(),
@@ -496,7 +513,8 @@ class _BugReportFormState extends State<BugReportForm> {
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _phoneController,
-                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            readOnly:
+                                _formSubmitted, // Disable editing if the form has been submitted
                             decoration: InputDecoration(
                               labelText: BugReportPlugin.getText('phone_label'),
                               border: const OutlineInputBorder(),
@@ -508,7 +526,8 @@ class _BugReportFormState extends State<BugReportForm> {
                           const SizedBox(height: 8),
                           TextFormField(
                             controller: _nameController,
-                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            readOnly:
+                                _formSubmitted, // Disable editing if the form has been submitted
                             decoration: InputDecoration(
                               labelText: BugReportPlugin.getText('name_label'),
                               border: const OutlineInputBorder(),
@@ -523,11 +542,13 @@ class _BugReportFormState extends State<BugReportForm> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(BugReportPlugin.getText('attach_images_label')),
+                            Text(
+                                BugReportPlugin.getText('attach_images_label')),
                             TextButton.icon(
                               onPressed: _isUploading ? null : _pickImage,
                               icon: const Icon(Icons.add_a_photo),
-                              label: Text(BugReportPlugin.getText('add_image_button')),
+                              label: Text(
+                                  BugReportPlugin.getText('add_image_button')),
                             ),
                           ],
                         ),
@@ -535,42 +556,42 @@ class _BugReportFormState extends State<BugReportForm> {
                         _images.isEmpty
                             ? Text(BugReportPlugin.getText('no_images_label'))
                             : Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _images
-                              .map((bytes) => Stack(
-                            children: [
-                              Image.memory(
-                                bytes,
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _images
+                                    .map((bytes) => Stack(
+                                          children: [
+                                            Image.memory(
+                                              bytes,
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                            ),
+                                            Positioned(
+                                              top: 0,
+                                              right: 0,
+                                              child: GestureDetector(
+                                                onTap: _isUploading
+                                                    ? null
+                                                    : () {
+                                                        setState(() {
+                                                          _images.remove(bytes);
+                                                        });
+                                                      },
+                                                child: Container(
+                                                  color: Colors.black54,
+                                                  child: const Icon(
+                                                    Icons.close,
+                                                    color: Colors.white,
+                                                    size: 18,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          ],
+                                        ))
+                                    .toList(),
                               ),
-                              Positioned(
-                                top: 0,
-                                right: 0,
-                                child: GestureDetector(
-                                  onTap: _isUploading
-                                      ? null
-                                      : () {
-                                    setState(() {
-                                      _images.remove(bytes);
-                                    });
-                                  },
-                                  child: Container(
-                                    color: Colors.black54,
-                                    child: const Icon(
-                                      Icons.close,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            ],
-                          ))
-                              .toList(),
-                        ),
                         const SizedBox(height: 24),
                         // Submit button
                         ElevatedButton(
@@ -584,7 +605,7 @@ class _BugReportFormState extends State<BugReportForm> {
                   ),
                 ),
               ),
-              
+
               // Loading screen (visible only during submission)
               if (_isUploading)
                 Container(
@@ -603,7 +624,8 @@ class _BugReportFormState extends State<BugReportForm> {
                             const SizedBox(height: 16),
                             Text(
                               BugReportPlugin.getText('sending_report'),
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
                             Text(BugReportPlugin.getText('please_wait')),

@@ -39,6 +39,9 @@ This plugin requires a Pocketbase backend with a collection for storing bug repo
 - `comentario` (text)
 - `imagenes` (file[])
 
+For detailed instructions on how to set up your Pocketbase backend to receive bug reports, visit:
+[Bug Report Pocketbase Configuration Guide](https://s.datogedon.com/bug_report_pb)
+
 ### Plugin Configuration
 
 Before using the plugin, you need to configure it with your Pocketbase details:

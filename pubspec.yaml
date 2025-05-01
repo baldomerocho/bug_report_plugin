@@ -1,6 +1,6 @@
 name: bug_report_pb
 description: "Plugin para reporte de bugs con Flutter y Pocketbase."
-version: 0.0.2
+version: 0.0.3
 homepage: https://github.com/baldomerocho/bug_report_plugin
 repository: https://github.com/baldomerocho/bug_report_plugin
 
