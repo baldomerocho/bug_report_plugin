@@ -8,37 +8,35 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-/// Plugin para reporte de bugs.
+/// A Flutter plugin for reporting bugs with image attachments.
 ///
-/// Este plugin expone el método estático [BugReportPlugin.bugReport] que
-/// muestra una vista con un formulario para enviar un reporte de error.
-/// El formulario permite ingresar:
-///   - Comentario (único campo requerido)
-///   - Adjuntar imágenes (screenshots) – se suben en forma secuencial (cola)
-///   - Toggle para "¿Deseas ser contactado?" y, de ser así, se muestran campos
-///     para email, teléfono y nombre.
+/// This plugin provides a static method [BugReportPlugin.bugReport] that
+/// displays a view with a form to submit an error report.
+/// The form allows users to:
+///   - Add a comment (only required field)
+///   - Attach images (screenshots) - uploaded sequentially
+///   - Toggle "Would you like to be contacted?" and, if enabled, fields for
+///     email, phone, and name are displayed.
 ///
-/// Al enviar el formulario se realiza:
-///   1. POST a la URL configurada enviando el comentario y
-///      datos de contacto (si se habilitó).
-///      La respuesta es un JSON con { id: UUID }.
-///   2. Por cada imagen adjunta se realiza un PUT a la URL configurada con el UUID
-///      que envía la imagen.
-/// El plugin incluye manejo de errores, confirmación de acciones y bloqueo
-/// de salida mientras se suben archivos.
+/// When submitting the form:
+///   1. A POST request is made to the configured URL sending the comment and
+///      contact information (if enabled) along with any attached images.
+///      The response is a JSON with { id: UUID }.
+/// The plugin includes error handling, action confirmation, and prevents
+/// exit while files are being uploaded.
 class BugReportPlugin {
-  /// Configuración del plugin
+  /// Plugin configuration
   static String? _host;
   static String? _collection;
   static String? _apiKey;
   static String? _package;
 
-  /// Configura el plugin con los parámetros necesarios
+  /// Configures the plugin with the necessary parameters
   ///
-  /// @param host URL base del servidor Pocketbase
-  /// @param collection Nombre de la colección en Pocketbase
-  /// @param apiKey API key para autenticación
-  /// @param package Identificador del paquete
+  /// @param host Base URL of the Pocketbase server
+  /// @param collection Name of the collection in Pocketbase
+  /// @param apiKey API key for authentication
+  /// @param package Package identifier
   static void configure({
     required String host,
     required String collection,
@@ -51,25 +49,25 @@ class BugReportPlugin {
     _package = package;
   }
 
-  /// Método estático para mostrar la vista de reporte de bug.
+  /// Static method to display the bug report view.
   ///
-  /// Se puede usar en un onPressed:
+  /// Can be used in an onPressed callback:
   /// ```dart
   /// onPressed: () {
   ///   BugReportPlugin.bugReport(context);
   /// }
   /// ```
   static void bugReport(BuildContext context) {
-    // Verificar que el plugin esté configurado
+    // Verify that the plugin is configured
     if (_host == null || _collection == null || _apiKey == null || _package == null) {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text("Error de configuración"),
-          content: const Text("El plugin no ha sido configurado correctamente. Utilice BugReportPlugin.configure() antes de llamar a bugReport()."),
+          title: const Text("Configuration Error"),
+          content: const Text("The plugin has not been properly configured. Use BugReportPlugin.configure() before calling bugReport()."),
           actions: [
             TextButton(
-              child: const Text("Aceptar"),
+              child: const Text("OK"),
               onPressed: () => Navigator.of(context).pop(),
             )
           ],
@@ -87,7 +85,7 @@ class BugReportPlugin {
   }
 }
 
-/// Vista con el formulario para el reporte de bug.
+/// View with the bug report form.
 class BugReportForm extends StatefulWidget {
   const BugReportForm({super.key});
 
@@ -98,22 +96,32 @@ class BugReportForm extends StatefulWidget {
 class _BugReportFormState extends State<BugReportForm> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controladores de texto
+  // Text controllers
   final TextEditingController _commentController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
 
-  // Variables de estado
+  // State variables
   bool _contactMe = false;
   bool _isUploading = false;
   bool _cancelled = false;
+  bool _formSubmitted = false; // To track if the form has been submitted
 
-  // Lista de imágenes seleccionadas (almacenadas en memoria)
+  // List of selected images (stored in memory)
   final List<Uint8List> _images = [];
 
-  // Instancia para seleccionar imágenes.
+  // Instance to select images
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    // Prevent the comment field from automatically getting focus
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).unfocus();
+    });
+  }
 
   @override
   void dispose() {
@@ -124,7 +132,7 @@ class _BugReportFormState extends State<BugReportForm> {
     super.dispose();
   }
 
-  /// Permite seleccionar una imagen usando image_picker.
+  /// Allows selecting an image using image_picker.
   Future<void> _pickImage() async {
     try {
       final XFile? pickedFile =
@@ -136,11 +144,11 @@ class _BugReportFormState extends State<BugReportForm> {
         });
       }
     } catch (e) {
-      _showError("Error al seleccionar imagen: $e");
+      _showError("Error selecting image: $e");
     }
   }
 
-  /// Muestra un diálogo de error con [message].
+  /// Shows an error dialog with [message].
   Future<void> _showError(String message) async {
     await showDialog(
       context: context,
@@ -149,7 +157,7 @@ class _BugReportFormState extends State<BugReportForm> {
         content: Text(message),
         actions: [
           TextButton(
-            child: const Text("Aceptar"),
+            child: const Text("OK"),
             onPressed: () => Navigator.of(context).pop(),
           )
         ],
@@ -157,20 +165,20 @@ class _BugReportFormState extends State<BugReportForm> {
     );
   }
 
-  /// Muestra un diálogo de confirmación con [message] y retorna true/false.
+  /// Shows a confirmation dialog with [message] and returns true/false.
   Future<bool> _showConfirmation(String message) async {
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Confirmación"),
+        title: const Text("Confirmation"),
         content: Text(message),
         actions: [
           TextButton(
-            child: const Text("Cancelar"),
+            child: const Text("Cancel"),
             onPressed: () => Navigator.of(context).pop(false),
           ),
           TextButton(
-            child: const Text("Aceptar"),
+            child: const Text("OK"),
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -179,87 +187,103 @@ class _BugReportFormState extends State<BugReportForm> {
         false;
   }
 
-  /// Envía el reporte de bug.
+  /// Submits the bug report.
   ///
-  /// Se envía el POST con los datos y las imágenes en una sola petición
-  /// utilizando multipart/form-data para compatibilidad con Pocketbase.
+  /// Sends a POST request with the data and images in a single request
+  /// using multipart/form-data for Pocketbase compatibility.
   Future<void> _submitReport() async {
+    // Ensure the keyboard is closed before continuing
+    FocusScope.of(context).unfocus();
+    
     if (_commentController.text.trim().isEmpty) {
-      _showError("El comentario es obligatorio.");
+      _showError("Comment is required.");
       return;
     }
 
-    // Confirmación de envío
+    // Submission confirmation
     bool confirm = await _showConfirmation(
-        "¿Deseas enviar el reporte? Se utilizarán los datos ingresados para mejorar la app.");
+        "Do you want to send the report? The entered data will be used to improve the app.");
     if (!confirm) return;
 
+    // Mark the form as submitted to prevent the keyboard from showing
     setState(() {
-      FocusScope.of(context).unfocus();
+      _formSubmitted = true;
+    });
+    
+    // Wait for the keyboard to finish closing before showing the loader
+    await Future.delayed(const Duration(milliseconds: 300));
+    
+    setState(() {
       _isUploading = true;
       _cancelled = false;
     });
 
     try {
-      // Realiza el POST para crear el reporte con las imágenes
+      // Perform the POST to create the report with images
       final reportId = await _createReportWithImages();
       
       if (!_cancelled) {
+        // We don't hide the loader here, as the success dialog will be shown on top
+        
+        // Show the success dialog
         await showDialog(
           context: context,
+          barrierDismissible: false, // Prevent closing by tapping outside
           builder: (_) => AlertDialog(
-            title: const Text("Reporte enviado"),
-            content: Text("El reporte se envió correctamente.\nID: $reportId"),
+            title: const Text("Report Sent"),
+            content: Text("The report was sent successfully.\nID: $reportId"),
             actions: [
               TextButton(
-                child: const Text("Aceptar"),
-                onPressed: () => Navigator.of(context).pop(),
+                child: const Text("OK"),
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close the dialog
+                  Navigator.of(context).pop(); // Close the report view
+                },
               )
             ],
           ),
         );
-        Navigator.of(context).pop(); // Cierra la vista de reporte
       }
     } catch (e) {
-      _showError("Error al enviar el reporte: $e");
-    } finally {
       if (mounted) {
         setState(() {
           _isUploading = false;
+          _formSubmitted = false; // Allow editing the form again in case of error
         });
+        _showError("Error sending report: $e");
       }
     }
   }
 
-  /// Realiza la petición POST para crear el reporte con imágenes.
+  /// Performs the POST request to create the report with images.
   ///
-  /// Envía los datos (comentario, datos de contacto e imágenes) en una sola petición
-  /// a la URL configurada utilizando multipart/form-data para compatibilidad con Pocketbase.
+  /// Sends the data (comment, contact information, and images) in a single request
+  /// to the configured URL using multipart/form-data for Pocketbase compatibility.
   Future<String> _createReportWithImages() async {
-    // Verificar que el plugin esté configurado
+    // Verify that the plugin is configured
     if (BugReportPlugin._host == null || 
         BugReportPlugin._collection == null || 
         BugReportPlugin._apiKey == null || 
         BugReportPlugin._package == null) {
-      throw Exception("El plugin no está configurado correctamente");
+      throw Exception("The plugin is not properly configured");
     }
     
     final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records");
     
-    // Crear un límite único para el formulario multipart
+    // Create a unique boundary for the multipart form
     final boundary = '----${DateTime.now().millisecondsSinceEpoch}----';
     
-    // Crear el cuerpo de la solicitud manualmente
+    // Create the request body manually
     final bodyData = <int>[];
     
-    // Función para agregar un campo de texto al cuerpo
+    // Function to add a text field to the body
     void addTextPart(String name, String value) {
       bodyData.addAll(utf8.encode('--$boundary\r\n'));
       bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"\r\n\r\n'));
       bodyData.addAll(utf8.encode('$value\r\n'));
     }
     
-    // Función para agregar una imagen al cuerpo
+    // Function to add an image to the body
     void addImagePart(String name, Uint8List bytes, int index) {
       bodyData.addAll(utf8.encode('--$boundary\r\n'));
       bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"; filename="image_$index.jpg"\r\n'));
@@ -268,73 +292,73 @@ class _BugReportFormState extends State<BugReportForm> {
       bodyData.addAll(utf8.encode('\r\n'));
     }
     
-    // Agregar campos de texto
+    // Add text fields
     addTextPart('email', _contactMe ? _emailController.text.trim() : "test");
     addTextPart('telefono', _contactMe ? _phoneController.text.trim() : "test");
     addTextPart('nombre', _contactMe ? _nameController.text.trim() : "test");
     addTextPart('package', BugReportPlugin._package!);
     addTextPart('comentario', _commentController.text.trim());
     
-    // Agregar imágenes si existen
+    // Add images if they exist
     for (int i = 0; i < _images.length; i++) {
       if (_cancelled) break;
       addImagePart('imagenes', _images[i], i);
     }
     
-    // Finalizar el cuerpo multipart
+    // Finalize the multipart body
     bodyData.addAll(utf8.encode('--$boundary--\r\n'));
     
-    // Crear un cliente HTTP y una solicitud
+    // Create an HTTP client and a request
     final httpClient = HttpClient();
     final request = await httpClient.postUrl(uri);
     
-    // Establecer encabezados
+    // Set headers
     request.headers.set("apikey", BugReportPlugin._apiKey!);
     request.headers.set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
     request.contentLength = bodyData.length;
     
-    // Enviar los datos
+    // Send the data
     request.add(Uint8List.fromList(bodyData));
     
-    // Enviar la solicitud y procesar la respuesta
+    // Send the request and process the response
     final response = await request.close();
     final responseBody = await response.transform(utf8.decoder).join();
     
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception("Error en POST: ${response.statusCode} - $responseBody");
+      throw Exception("Error in POST: ${response.statusCode} - $responseBody");
     }
     
     final data = json.decode(responseBody);
     httpClient.close();
     
     if (data["id"] == null) {
-      throw Exception("Respuesta inválida del servidor");
+      throw Exception("Invalid server response");
     }
     
     return data["id"];
   }
 
-  /// Muestra una alerta para confirmar la cancelación del reporte.
+  /// Shows an alert to confirm cancellation of the report.
   Future<bool> _confirmCancel() async {
     return await _showConfirmation(
-        "¿Seguro que deseas cancelar el reporte? Se perderán los datos ingresados.");
+        "Are you sure you want to cancel the report? All entered data will be lost.");
   }
 
   @override
   Widget build(BuildContext context) {
-    // Se utiliza WillPopScope para bloquear la salida mientras se suben archivos.
+    // WillPopScope is used to block exit while files are being uploaded.
     return WillPopScope(
       onWillPop: () async {
         if (_isUploading) {
-          // Si se están subiendo archivos, se bloquea la salida.
+          // If files are being uploaded, exit is blocked.
           return false;
         }
-        // Si no se está subiendo, se pide confirmación para cancelar.
+        // If not uploading, ask for confirmation to cancel.
         return await _confirmCancel();
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Reportar un Bug"),
+          title: const Text("Report a Bug"),
           actions: [
             IconButton(
               icon: const Icon(Icons.close),
@@ -348,155 +372,194 @@ class _BugReportFormState extends State<BugReportForm> {
             )
           ],
         ),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                // Información de la ventana
-                const Text(
-                  "Se está reportando un error con fines de mejorar la calidad de la app.",
-                  style: TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                // Campo de comentario (requerido)
-                TextFormField(
-                  controller: _commentController,
-                  maxLines: null,
-                  minLines: 1,
-                  decoration: const InputDecoration(
-                    labelText: "Comentario *",
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return "El comentario es obligatorio.";
-                    }
-                    return null;
-                  },
-                  onTapOutside: (event) {
-                    FocusScope.of(context).unfocus();
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Toggle para "Deseas ser contactado"
-                SwitchListTile(
-                  title: const Text("¿Deseas ser contactado?"),
-                  value: _contactMe,
-                  onChanged: (val) {
-                    setState(() {
-                      _contactMe = val;
-                    });
-                  },
-                ),
-                // Campos de contacto (solo si _contactMe es true)
-                if (_contactMe) ...[
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: "Email",
-                      border: OutlineInputBorder(),
-                    ),
-                    onTapOutside: (event) {
-                    FocusScope.of(context).unfocus();
-                  },
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText: "Teléfono",
-                      border: OutlineInputBorder(),
-                    ),
-                    onTapOutside: (event) {
-                    FocusScope.of(context).unfocus();
-                  },
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: "Nombre",
-                      border: OutlineInputBorder(),
-                    ),
-                    onTapOutside: (event) {
-                    FocusScope.of(context).unfocus();
-                  },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                // Sección para adjuntar imágenes
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Adjuntar imágenes:"),
-                    TextButton.icon(
-                      onPressed: _isUploading ? null : _pickImage,
-                      icon: const Icon(Icons.add_a_photo),
-                      label: const Text("Agregar imagen"),
-                    ),
-                  ],
-                ),
-                // Vista previa de imágenes seleccionadas
-                _images.isEmpty
-                    ? const Text("No se han agregado imágenes.")
-                    : Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _images
-                      .map((bytes) => Stack(
-                    children: [
-                      Image.memory(
-                        bytes,
-                        width: 100,
-                        height: 100,
-                        fit: BoxFit.cover,
-                      ),
-                      Positioned(
-                        top: 0,
-                        right: 0,
-                        child: GestureDetector(
-                          onTap: _isUploading
-                              ? null
-                              : () {
-                            setState(() {
-                              _images.remove(bytes);
-                            });
-                          },
-                          child: Container(
-                            color: Colors.black54,
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ),
-                        ),
-                      )
-                    ],
-                  ))
-                      .toList(),
-                ),
-                const SizedBox(height: 24),
-                // Botón de envío
-                ElevatedButton(
-                  onPressed: _isUploading ? null : _submitReport,
-                  child: const Text("Enviar reporte"),
-                ),
-                if (_isUploading)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 16.0),
+        body: GestureDetector(
+          // Close the keyboard when tapping outside any text field
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.opaque,
+          child: Stack(
+            children: [
+              // Form (visible only if not uploading)
+              Visibility(
+                visible: !_isUploading,
+                maintainState: true,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
                     child: Column(
                       children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 8),
-                        Text("Subiendo datos, por favor espere..."),
+                        // Window information
+                        const Text(
+                          "You are reporting an error to help improve the quality of the app.",
+                          style: TextStyle(fontSize: 16),
+                        ),
+                        const SizedBox(height: 16),
+                        // Comment field (required)
+                        TextFormField(
+                          controller: _commentController,
+                          maxLines: null,
+                          minLines: 1,
+                          autofocus: false, // Prevent automatic focus
+                          readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                          decoration: const InputDecoration(
+                            labelText: "Comment *",
+                            border: OutlineInputBorder(),
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return "Comment is required.";
+                            }
+                            return null;
+                          },
+                          onTapOutside: (event) {
+                            FocusScope.of(context).unfocus();
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Toggle for "Would you like to be contacted?"
+                        SwitchListTile(
+                          title: const Text("Would you like to be contacted?"),
+                          value: _contactMe,
+                          onChanged: (val) {
+                            setState(() {
+                              _contactMe = val;
+                            });
+                          },
+                        ),
+                        // Contact fields (only if _contactMe is true)
+                        if (_contactMe) ...[
+                          TextFormField(
+                            controller: _emailController,
+                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            decoration: const InputDecoration(
+                              labelText: "Email",
+                              border: OutlineInputBorder(),
+                            ),
+                            onTapOutside: (event) {
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _phoneController,
+                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            decoration: const InputDecoration(
+                              labelText: "Phone",
+                              border: OutlineInputBorder(),
+                            ),
+                            onTapOutside: (event) {
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _nameController,
+                            readOnly: _formSubmitted, // Disable editing if the form has been submitted
+                            decoration: const InputDecoration(
+                              labelText: "Name",
+                              border: OutlineInputBorder(),
+                            ),
+                            onTapOutside: (event) {
+                              FocusScope.of(context).unfocus();
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        // Section for attaching images
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Attach images:"),
+                            TextButton.icon(
+                              onPressed: _isUploading ? null : _pickImage,
+                              icon: const Icon(Icons.add_a_photo),
+                              label: const Text("Add image"),
+                            ),
+                          ],
+                        ),
+                        // Preview of selected images
+                        _images.isEmpty
+                            ? const Text("No images have been added.")
+                            : Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _images
+                              .map((bytes) => Stack(
+                            children: [
+                              Image.memory(
+                                bytes,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: GestureDetector(
+                                  onTap: _isUploading
+                                      ? null
+                                      : () {
+                                    setState(() {
+                                      _images.remove(bytes);
+                                    });
+                                  },
+                                  child: Container(
+                                    color: Colors.black54,
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            ],
+                          ))
+                              .toList(),
+                        ),
+                        const SizedBox(height: 24),
+                        // Submit button
+                        ElevatedButton(
+                          onPressed: _isUploading ? null : _submitReport,
+                          child: const Text("Submit report"),
+                        ),
+                        // Additional space to prevent the button from being hidden by the loader
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
-              ],
-            ),
+                ),
+              ),
+              
+              // Loading screen (visible only during submission)
+              if (_isUploading)
+                Container(
+                  color: Colors.white,
+                  width: double.infinity,
+                  height: double.infinity,
+                  child: const Center(
+                    child: Card(
+                      elevation: 8,
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              "Sending report...",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            SizedBox(height: 8),
+                            Text("Please wait a moment"),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

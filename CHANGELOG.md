@@ -1,3 +1,4 @@
-## 0.0.1
+## 0.0.2
 
-* TODO: Describe initial release.
+* First release.
+This is a plugin for reporting bugs with Flutter and Pocketbase.
