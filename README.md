@@ -55,6 +55,57 @@ BugReportPlugin.configure(
 );
 ```
 
+### Customizing Text and Translations
+
+The plugin supports customizing all text elements through a dictionary. This allows you to translate the UI to any language or customize specific text elements:
+
+```dart
+// Example with Spanish translations
+BugReportPlugin.configure(
+  host: "https://your-pocketbase-server.com",
+  collection: "bug_reports",
+  apiKey: "your-api-key",
+  package: "your-package-identifier",
+  textDictionary: {
+    // Dialog titles
+    'configuration_error_title': 'Error de configuración',
+    'error_title': 'Error',
+    'confirmation_title': 'Confirmación',
+    'report_sent_title': 'Reporte enviado',
+    
+    // Dialog messages
+    'configuration_error_message': 'El plugin no ha sido configurado correctamente. Utilice BugReportPlugin.configure() antes de llamar a bugReport().',
+    'report_sent_message': 'El reporte se envió correctamente.',
+    'cancel_confirmation_message': '¿Seguro que deseas cancelar el reporte? Se perderán los datos ingresados.',
+    'submit_confirmation_message': '¿Deseas enviar el reporte? Se utilizarán los datos ingresados para mejorar la app.',
+    
+    // Button labels
+    'ok_button': 'Aceptar',
+    'cancel_button': 'Cancelar',
+    'submit_button': 'Enviar reporte',
+    'add_image_button': 'Agregar imagen',
+    
+    // Form labels
+    'app_bar_title': 'Reportar un Bug',
+    'form_intro': 'Se está reportando un error con fines de mejorar la calidad de la app.',
+    'comment_label': 'Comentario *',
+    'comment_validation': 'El comentario es obligatorio.',
+    'contact_toggle': '¿Deseas ser contactado?',
+    'email_label': 'Email',
+    'phone_label': 'Teléfono',
+    'name_label': 'Nombre',
+    'attach_images_label': 'Adjuntar imágenes:',
+    'no_images_label': 'No se han agregado imágenes.',
+    
+    // Loading state
+    'sending_report': 'Enviando reporte...',
+    'please_wait': 'Por favor, espere un momento',
+  }
+);
+```
+
+You only need to include the text elements you want to customize - any missing keys will automatically use the English defaults.
+
 ## Usage
 
 Once configured, you can show the bug report form by calling:

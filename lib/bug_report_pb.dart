@@ -30,6 +30,46 @@ class BugReportPlugin {
   static String? _collection;
   static String? _apiKey;
   static String? _package;
+  
+  /// Text dictionary for customizing UI text elements
+  static Map<String, String> _textDictionary = defaultTextDictionary;
+  
+  /// Default text dictionary with English text
+  static const Map<String, String> defaultTextDictionary = {
+    // Dialog titles
+    'configuration_error_title': 'Configuration Error',
+    'error_title': 'Error',
+    'confirmation_title': 'Confirmation',
+    'report_sent_title': 'Report Sent',
+    
+    // Dialog messages
+    'configuration_error_message': 'The plugin has not been properly configured. Use BugReportPlugin.configure() before calling bugReport().',
+    'report_sent_message': 'The report was sent successfully.',
+    'cancel_confirmation_message': 'Are you sure you want to cancel the report? All entered data will be lost.',
+    'submit_confirmation_message': 'Do you want to send the report? The entered data will be used to improve the app.',
+    
+    // Button labels
+    'ok_button': 'OK',
+    'cancel_button': 'Cancel',
+    'submit_button': 'Submit report',
+    'add_image_button': 'Add image',
+    
+    // Form labels
+    'app_bar_title': 'Report a Bug',
+    'form_intro': 'You are reporting an error to help improve the quality of the app.',
+    'comment_label': 'Comment *',
+    'comment_validation': 'Comment is required.',
+    'contact_toggle': 'Would you like to be contacted?',
+    'email_label': 'Email',
+    'phone_label': 'Phone',
+    'name_label': 'Name',
+    'attach_images_label': 'Attach images:',
+    'no_images_label': 'No images have been added.',
+    
+    // Loading state
+    'sending_report': 'Sending report...',
+    'please_wait': 'Please wait a moment',
+  };
 
   /// Configures the plugin with the necessary parameters
   ///
@@ -37,16 +77,30 @@ class BugReportPlugin {
   /// @param collection Name of the collection in Pocketbase
   /// @param apiKey API key for authentication
   /// @param package Package identifier
+  /// @param textDictionary Optional dictionary to customize UI text elements
   static void configure({
     required String host,
     required String collection,
     required String apiKey,
     required String package,
+    Map<String, String>? textDictionary,
   }) {
     _host = host;
     _collection = collection;
     _apiKey = apiKey;
     _package = package;
+    
+    // If custom text dictionary is provided, merge it with the default
+    if (textDictionary != null) {
+      _textDictionary = Map.from(defaultTextDictionary)..addAll(textDictionary);
+    } else {
+      _textDictionary = Map.from(defaultTextDictionary);
+    }
+  }
+
+  /// Gets a text value from the dictionary or returns the default if not found
+  static String getText(String key) {
+    return _textDictionary[key] ?? defaultTextDictionary[key] ?? key;
   }
 
   /// Static method to display the bug report view.
@@ -63,11 +117,11 @@ class BugReportPlugin {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: const Text("Configuration Error"),
-          content: const Text("The plugin has not been properly configured. Use BugReportPlugin.configure() before calling bugReport()."),
+          title: Text(getText('configuration_error_title')),
+          content: Text(getText('configuration_error_message')),
           actions: [
             TextButton(
-              child: const Text("OK"),
+              child: Text(getText('ok_button')),
               onPressed: () => Navigator.of(context).pop(),
             )
           ],
@@ -153,11 +207,11 @@ class _BugReportFormState extends State<BugReportForm> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Error"),
+        title: Text(BugReportPlugin.getText('error_title')),
         content: Text(message),
         actions: [
           TextButton(
-            child: const Text("OK"),
+            child: Text(BugReportPlugin.getText('ok_button')),
             onPressed: () => Navigator.of(context).pop(),
           )
         ],
@@ -170,15 +224,15 @@ class _BugReportFormState extends State<BugReportForm> {
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Confirmation"),
+        title: Text(BugReportPlugin.getText('confirmation_title')),
         content: Text(message),
         actions: [
           TextButton(
-            child: const Text("Cancel"),
+            child: Text(BugReportPlugin.getText('cancel_button')),
             onPressed: () => Navigator.of(context).pop(false),
           ),
           TextButton(
-            child: const Text("OK"),
+            child: Text(BugReportPlugin.getText('ok_button')),
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -196,13 +250,13 @@ class _BugReportFormState extends State<BugReportForm> {
     FocusScope.of(context).unfocus();
     
     if (_commentController.text.trim().isEmpty) {
-      _showError("Comment is required.");
+      _showError(BugReportPlugin.getText('comment_validation'));
       return;
     }
 
     // Submission confirmation
     bool confirm = await _showConfirmation(
-        "Do you want to send the report? The entered data will be used to improve the app.");
+        BugReportPlugin.getText('submit_confirmation_message'));
     if (!confirm) return;
 
     // Mark the form as submitted to prevent the keyboard from showing
@@ -230,11 +284,11 @@ class _BugReportFormState extends State<BugReportForm> {
           context: context,
           barrierDismissible: false, // Prevent closing by tapping outside
           builder: (_) => AlertDialog(
-            title: const Text("Report Sent"),
-            content: Text("The report was sent successfully.\nID: $reportId"),
+            title: Text(BugReportPlugin.getText('report_sent_title')),
+            content: Text("${BugReportPlugin.getText('report_sent_message')}\nID: $reportId"),
             actions: [
               TextButton(
-                child: const Text("OK"),
+                child: Text(BugReportPlugin.getText('ok_button')),
                 onPressed: () {
                   Navigator.of(context).pop(); // Close the dialog
                   Navigator.of(context).pop(); // Close the report view
@@ -341,7 +395,7 @@ class _BugReportFormState extends State<BugReportForm> {
   /// Shows an alert to confirm cancellation of the report.
   Future<bool> _confirmCancel() async {
     return await _showConfirmation(
-        "Are you sure you want to cancel the report? All entered data will be lost.");
+        BugReportPlugin.getText('cancel_confirmation_message'));
   }
 
   @override
@@ -358,7 +412,7 @@ class _BugReportFormState extends State<BugReportForm> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Report a Bug"),
+          title: Text(BugReportPlugin.getText('app_bar_title')),
           actions: [
             IconButton(
               icon: const Icon(Icons.close),
@@ -389,9 +443,9 @@ class _BugReportFormState extends State<BugReportForm> {
                     child: Column(
                       children: [
                         // Window information
-                        const Text(
-                          "You are reporting an error to help improve the quality of the app.",
-                          style: TextStyle(fontSize: 16),
+                        Text(
+                          BugReportPlugin.getText('form_intro'),
+                          style: const TextStyle(fontSize: 16),
                         ),
                         const SizedBox(height: 16),
                         // Comment field (required)
@@ -401,13 +455,13 @@ class _BugReportFormState extends State<BugReportForm> {
                           minLines: 1,
                           autofocus: false, // Prevent automatic focus
                           readOnly: _formSubmitted, // Disable editing if the form has been submitted
-                          decoration: const InputDecoration(
-                            labelText: "Comment *",
-                            border: OutlineInputBorder(),
+                          decoration: InputDecoration(
+                            labelText: BugReportPlugin.getText('comment_label'),
+                            border: const OutlineInputBorder(),
                           ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return "Comment is required.";
+                              return BugReportPlugin.getText('comment_validation');
                             }
                             return null;
                           },
@@ -418,7 +472,7 @@ class _BugReportFormState extends State<BugReportForm> {
                         const SizedBox(height: 16),
                         // Toggle for "Would you like to be contacted?"
                         SwitchListTile(
-                          title: const Text("Would you like to be contacted?"),
+                          title: Text(BugReportPlugin.getText('contact_toggle')),
                           value: _contactMe,
                           onChanged: (val) {
                             setState(() {
@@ -431,9 +485,9 @@ class _BugReportFormState extends State<BugReportForm> {
                           TextFormField(
                             controller: _emailController,
                             readOnly: _formSubmitted, // Disable editing if the form has been submitted
-                            decoration: const InputDecoration(
-                              labelText: "Email",
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: BugReportPlugin.getText('email_label'),
+                              border: const OutlineInputBorder(),
                             ),
                             onTapOutside: (event) {
                               FocusScope.of(context).unfocus();
@@ -443,9 +497,9 @@ class _BugReportFormState extends State<BugReportForm> {
                           TextFormField(
                             controller: _phoneController,
                             readOnly: _formSubmitted, // Disable editing if the form has been submitted
-                            decoration: const InputDecoration(
-                              labelText: "Phone",
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: BugReportPlugin.getText('phone_label'),
+                              border: const OutlineInputBorder(),
                             ),
                             onTapOutside: (event) {
                               FocusScope.of(context).unfocus();
@@ -455,9 +509,9 @@ class _BugReportFormState extends State<BugReportForm> {
                           TextFormField(
                             controller: _nameController,
                             readOnly: _formSubmitted, // Disable editing if the form has been submitted
-                            decoration: const InputDecoration(
-                              labelText: "Name",
-                              border: OutlineInputBorder(),
+                            decoration: InputDecoration(
+                              labelText: BugReportPlugin.getText('name_label'),
+                              border: const OutlineInputBorder(),
                             ),
                             onTapOutside: (event) {
                               FocusScope.of(context).unfocus();
@@ -469,17 +523,17 @@ class _BugReportFormState extends State<BugReportForm> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text("Attach images:"),
+                            Text(BugReportPlugin.getText('attach_images_label')),
                             TextButton.icon(
                               onPressed: _isUploading ? null : _pickImage,
                               icon: const Icon(Icons.add_a_photo),
-                              label: const Text("Add image"),
+                              label: Text(BugReportPlugin.getText('add_image_button')),
                             ),
                           ],
                         ),
                         // Preview of selected images
                         _images.isEmpty
-                            ? const Text("No images have been added.")
+                            ? Text(BugReportPlugin.getText('no_images_label'))
                             : Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -521,7 +575,7 @@ class _BugReportFormState extends State<BugReportForm> {
                         // Submit button
                         ElevatedButton(
                           onPressed: _isUploading ? null : _submitReport,
-                          child: const Text("Submit report"),
+                          child: Text(BugReportPlugin.getText('submit_button')),
                         ),
                         // Additional space to prevent the button from being hidden by the loader
                         const SizedBox(height: 80),
@@ -537,22 +591,22 @@ class _BugReportFormState extends State<BugReportForm> {
                   color: Colors.white,
                   width: double.infinity,
                   height: double.infinity,
-                  child: const Center(
+                  child: Center(
                     child: Card(
                       elevation: 8,
                       child: Padding(
-                        padding: EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 16),
                             Text(
-                              "Sending report...",
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              BugReportPlugin.getText('sending_report'),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            SizedBox(height: 8),
-                            Text("Please wait a moment"),
+                            const SizedBox(height: 8),
+                            Text(BugReportPlugin.getText('please_wait')),
                           ],
                         ),
                       ),
