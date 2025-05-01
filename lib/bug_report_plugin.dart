@@ -65,11 +65,11 @@ class BugReportPlugin {
       showDialog(
         context: context,
         builder: (_) => AlertDialog(
-          title: Text("Error de configuración"),
-          content: Text("El plugin no ha sido configurado correctamente. Utilice BugReportPlugin.configure() antes de llamar a bugReport()."),
+          title: const Text("Error de configuración"),
+          content: const Text("El plugin no ha sido configurado correctamente. Utilice BugReportPlugin.configure() antes de llamar a bugReport()."),
           actions: [
             TextButton(
-              child: Text("Aceptar"),
+              child: const Text("Aceptar"),
               onPressed: () => Navigator.of(context).pop(),
             )
           ],
@@ -80,7 +80,7 @@ class BugReportPlugin {
     
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => BugReportForm(),
+        builder: (context) => const BugReportForm(),
         fullscreenDialog: true,
       ),
     );
@@ -89,6 +89,8 @@ class BugReportPlugin {
 
 /// Vista con el formulario para el reporte de bug.
 class BugReportForm extends StatefulWidget {
+  const BugReportForm({super.key});
+
   @override
   _BugReportFormState createState() => _BugReportFormState();
 }
@@ -143,11 +145,11 @@ class _BugReportFormState extends State<BugReportForm> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text("Error"),
+        title: const Text("Error"),
         content: Text(message),
         actions: [
           TextButton(
-            child: Text("Aceptar"),
+            child: const Text("Aceptar"),
             onPressed: () => Navigator.of(context).pop(),
           )
         ],
@@ -160,15 +162,15 @@ class _BugReportFormState extends State<BugReportForm> {
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text("Confirmación"),
+        title: const Text("Confirmación"),
         content: Text(message),
         actions: [
           TextButton(
-            child: Text("Cancelar"),
+            child: const Text("Cancelar"),
             onPressed: () => Navigator.of(context).pop(false),
           ),
           TextButton(
-            child: Text("Aceptar"),
+            child: const Text("Aceptar"),
             onPressed: () => Navigator.of(context).pop(true),
           ),
         ],
@@ -179,8 +181,8 @@ class _BugReportFormState extends State<BugReportForm> {
 
   /// Envía el reporte de bug.
   ///
-  /// Primero se envía el POST con los datos y se obtiene el UUID del reporte.
-  /// Luego se suben las imágenes adjuntas de forma secuencial.
+  /// Se envía el POST con los datos y las imágenes en una sola petición
+  /// utilizando multipart/form-data para compatibilidad con Pocketbase.
   Future<void> _submitReport() async {
     if (_commentController.text.trim().isEmpty) {
       _showError("El comentario es obligatorio.");
@@ -193,27 +195,24 @@ class _BugReportFormState extends State<BugReportForm> {
     if (!confirm) return;
 
     setState(() {
+      FocusScope.of(context).unfocus();
       _isUploading = true;
       _cancelled = false;
     });
 
     try {
-      // Realiza el POST para crear el reporte
-      final reportId = await _createReport();
-      // Sube cada imagen en forma secuencial (cola)
-      for (int i = 0; i < _images.length; i++) {
-        if (_cancelled) break;
-        await _uploadImage(reportId, _images[i]);
-      }
+      // Realiza el POST para crear el reporte con las imágenes
+      final reportId = await _createReportWithImages();
+      
       if (!_cancelled) {
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: Text("Reporte enviado"),
+            title: const Text("Reporte enviado"),
             content: Text("El reporte se envió correctamente.\nID: $reportId"),
             actions: [
               TextButton(
-                child: Text("Aceptar"),
+                child: const Text("Aceptar"),
                 onPressed: () => Navigator.of(context).pop(),
               )
             ],
@@ -232,11 +231,11 @@ class _BugReportFormState extends State<BugReportForm> {
     }
   }
 
-  /// Realiza la petición POST para crear el reporte.
+  /// Realiza la petición POST para crear el reporte con imágenes.
   ///
-  /// Envía los datos (comentario y datos de contacto si corresponden)
-  /// a la URL configurada y retorna el UUID del reporte.
-  Future<String> _createReport() async {
+  /// Envía los datos (comentario, datos de contacto e imágenes) en una sola petición
+  /// a la URL configurada utilizando multipart/form-data para compatibilidad con Pocketbase.
+  Future<String> _createReportWithImages() async {
     // Verificar que el plugin esté configurado
     if (BugReportPlugin._host == null || 
         BugReportPlugin._collection == null || 
@@ -246,55 +245,73 @@ class _BugReportFormState extends State<BugReportForm> {
     }
     
     final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records");
+    
+    // Crear un límite único para el formulario multipart
+    final boundary = '----${DateTime.now().millisecondsSinceEpoch}----';
+    
+    // Crear el cuerpo de la solicitud manualmente
+    final bodyData = <int>[];
+    
+    // Función para agregar un campo de texto al cuerpo
+    void addTextPart(String name, String value) {
+      bodyData.addAll(utf8.encode('--$boundary\r\n'));
+      bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"\r\n\r\n'));
+      bodyData.addAll(utf8.encode('$value\r\n'));
+    }
+    
+    // Función para agregar una imagen al cuerpo
+    void addImagePart(String name, Uint8List bytes, int index) {
+      bodyData.addAll(utf8.encode('--$boundary\r\n'));
+      bodyData.addAll(utf8.encode('Content-Disposition: form-data; name="$name"; filename="image_$index.jpg"\r\n'));
+      bodyData.addAll(utf8.encode('Content-Type: image/jpeg\r\n\r\n'));
+      bodyData.addAll(bytes);
+      bodyData.addAll(utf8.encode('\r\n'));
+    }
+    
+    // Agregar campos de texto
+    addTextPart('email', _contactMe ? _emailController.text.trim() : "test");
+    addTextPart('telefono', _contactMe ? _phoneController.text.trim() : "test");
+    addTextPart('nombre', _contactMe ? _nameController.text.trim() : "test");
+    addTextPart('package', BugReportPlugin._package!);
+    addTextPart('comentario', _commentController.text.trim());
+    
+    // Agregar imágenes si existen
+    for (int i = 0; i < _images.length; i++) {
+      if (_cancelled) break;
+      addImagePart('imagenes', _images[i], i);
+    }
+    
+    // Finalizar el cuerpo multipart
+    bodyData.addAll(utf8.encode('--$boundary--\r\n'));
+    
+    // Crear un cliente HTTP y una solicitud
     final httpClient = HttpClient();
     final request = await httpClient.postUrl(uri);
-
-    request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
-    request.headers.set("apikey", BugReportPlugin._apiKey!);
-
-    // Crear el payload según la estructura de Pocketbase
-    final Map<String, dynamic> payload = {
-      "email": _contactMe ? _emailController.text.trim() : "test",
-      "telefono": _contactMe ? _phoneController.text.trim() : "test",
-      "nombre": _contactMe ? _nameController.text.trim() : "test",
-      "package": BugReportPlugin._package,
-      "comentario": _commentController.text.trim(),
-    };
     
-    request.add(utf8.encode(json.encode(payload)));
-
+    // Establecer encabezados
+    request.headers.set("apikey", BugReportPlugin._apiKey!);
+    request.headers.set(HttpHeaders.contentTypeHeader, 'multipart/form-data; boundary=$boundary');
+    request.contentLength = bodyData.length;
+    
+    // Enviar los datos
+    request.add(Uint8List.fromList(bodyData));
+    
+    // Enviar la solicitud y procesar la respuesta
     final response = await request.close();
     final responseBody = await response.transform(utf8.decoder).join();
+    
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception("Error en POST: ${response.statusCode} - $responseBody");
     }
+    
     final data = json.decode(responseBody);
     httpClient.close();
+    
     if (data["id"] == null) {
       throw Exception("Respuesta inválida del servidor");
     }
+    
     return data["id"];
-  }
-
-  /// Realiza la petición PUT para subir una imagen al reporte.
-  ///
-  /// Se envía a la URL configurada con el ID del reporte
-  /// con el contenido de la imagen en formato JPEG.
-  Future<void> _uploadImage(String reportId, Uint8List imageBytes) async {
-    final uri = Uri.parse("${BugReportPlugin._host}/api/collections/${BugReportPlugin._collection}/records/$reportId");
-    final httpClient = HttpClient();
-    final request = await httpClient.putUrl(uri);
-
-    // Se asume que la imagen es JPEG; ajustar según sea necesario
-    request.headers.set(HttpHeaders.contentTypeHeader, "image/jpeg");
-    request.headers.set("apikey", BugReportPlugin._apiKey!);
-    request.add(imageBytes);
-
-    final response = await request.close();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception("Error al subir imagen. Código: ${response.statusCode}");
-    }
-    httpClient.close();
   }
 
   /// Muestra una alerta para confirmar la cancelación del reporte.
@@ -317,10 +334,10 @@ class _BugReportFormState extends State<BugReportForm> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Reportar un Bug"),
+          title: const Text("Reportar un Bug"),
           actions: [
             IconButton(
-              icon: Icon(Icons.close),
+              icon: const Icon(Icons.close),
               onPressed: _isUploading
                   ? null
                   : () async {
@@ -332,22 +349,23 @@ class _BugReportFormState extends State<BugReportForm> {
           ],
         ),
         body: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Form(
             key: _formKey,
             child: Column(
               children: [
                 // Información de la ventana
-                Text(
+                const Text(
                   "Se está reportando un error con fines de mejorar la calidad de la app.",
                   style: TextStyle(fontSize: 16),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 // Campo de comentario (requerido)
                 TextFormField(
                   controller: _commentController,
-                  maxLines: 4,
-                  decoration: InputDecoration(
+                  maxLines: null,
+                  minLines: 1,
+                  decoration: const InputDecoration(
                     labelText: "Comentario *",
                     border: OutlineInputBorder(),
                   ),
@@ -361,10 +379,10 @@ class _BugReportFormState extends State<BugReportForm> {
                     FocusScope.of(context).unfocus();
                   },
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 // Toggle para "Deseas ser contactado"
                 SwitchListTile(
-                  title: Text("¿Deseas ser contactado?"),
+                  title: const Text("¿Deseas ser contactado?"),
                   value: _contactMe,
                   onChanged: (val) {
                     setState(() {
@@ -376,7 +394,7 @@ class _BugReportFormState extends State<BugReportForm> {
                 if (_contactMe) ...[
                   TextFormField(
                     controller: _emailController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: "Email",
                       border: OutlineInputBorder(),
                     ),
@@ -384,10 +402,10 @@ class _BugReportFormState extends State<BugReportForm> {
                     FocusScope.of(context).unfocus();
                   },
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _phoneController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: "Teléfono",
                       border: OutlineInputBorder(),
                     ),
@@ -395,10 +413,10 @@ class _BugReportFormState extends State<BugReportForm> {
                     FocusScope.of(context).unfocus();
                   },
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   TextFormField(
                     controller: _nameController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: "Nombre",
                       border: OutlineInputBorder(),
                     ),
@@ -406,23 +424,23 @@ class _BugReportFormState extends State<BugReportForm> {
                     FocusScope.of(context).unfocus();
                   },
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                 ],
                 // Sección para adjuntar imágenes
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("Adjuntar imágenes:"),
+                    const Text("Adjuntar imágenes:"),
                     TextButton.icon(
                       onPressed: _isUploading ? null : _pickImage,
-                      icon: Icon(Icons.add_a_photo),
-                      label: Text("Agregar imagen"),
+                      icon: const Icon(Icons.add_a_photo),
+                      label: const Text("Agregar imagen"),
                     ),
                   ],
                 ),
                 // Vista previa de imágenes seleccionadas
                 _images.isEmpty
-                    ? Text("No se han agregado imágenes.")
+                    ? const Text("No se han agregado imágenes.")
                     : Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -448,7 +466,7 @@ class _BugReportFormState extends State<BugReportForm> {
                           },
                           child: Container(
                             color: Colors.black54,
-                            child: Icon(
+                            child: const Icon(
                               Icons.close,
                               color: Colors.white,
                               size: 18,
@@ -460,15 +478,15 @@ class _BugReportFormState extends State<BugReportForm> {
                   ))
                       .toList(),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 // Botón de envío
                 ElevatedButton(
                   onPressed: _isUploading ? null : _submitReport,
-                  child: Text("Enviar reporte"),
+                  child: const Text("Enviar reporte"),
                 ),
                 if (_isUploading)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16.0),
+                  const Padding(
+                    padding: EdgeInsets.only(top: 16.0),
                     child: Column(
                       children: [
                         CircularProgressIndicator(),
