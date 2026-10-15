@@ -425,6 +425,10 @@ class _BugReportFormState extends State<BugReportForm> {
       },
       child: Scaffold(
         appBar: AppBar(
+          // La ruta se abre con fullscreenDialog, así que el AppBar añadiría
+          // su propio botón de cierre a la izquierda y quedaban dos. El único
+          // cierre es el de `actions`, que pide confirmación antes de salir.
+          automaticallyImplyLeading: false,
           title: Text(BugReportPlugin.getText('app_bar_title')),
           actions: [
             IconButton(
