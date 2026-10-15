@@ -30,5 +30,11 @@ jobs:
       - name: Pruebas
         run: flutter test
 
+      - name: Estado de git antes del dry-run
+        # El dry-run avisa si hay archivos versionados modificados en el runner.
+        run: |
+          git status --porcelain
+          git diff
+
       - name: Validar publicación (dry-run)
         run: flutter pub publish --dry-run

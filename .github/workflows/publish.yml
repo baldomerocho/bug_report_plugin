@@ -1,12 +1,17 @@
 name: Publicar en pub.dev
 
 # Publicación automática por tag. pub.dev tiene habilitado "Publishing from
-# GitHub Actions" para baldomerocho/bug_report_plugin con el patrón v{{version}}:
-# al empujar un tag vX.Y.Z, pub.dev acepta la subida con el token OIDC del job
-# (sin secretos). La versión del tag debe coincidir con la de pubspec.yaml.
+# GitHub Actions" para baldomerocho/bug_report_plugin con el patrón v{{version}}.
+#
+# Se usa el workflow reutilizable oficial de dart-lang: su acción setup-dart es
+# la que pide el token OIDC de GitHub y lo deja configurado para pub (el cliente
+# de pub no lo hace solo: sin ese paso cae al login por navegador y se cuelga).
+# También instala el SDK de Flutter, necesario para paquetes Flutter como este,
+# hace un dry-run y publica con `dart pub publish -f`.
 #
 # Flujo: subir `version:` en pubspec.yaml y CHANGELOG.md, commit en master,
-# `git tag vX.Y.Z && git push origin vX.Y.Z`.
+# `git tag vX.Y.Z && git push origin vX.Y.Z`. La versión del tag debe
+# coincidir con la de pubspec.yaml o pub.dev rechaza la subida.
 
 on:
   push:
@@ -15,36 +20,7 @@ on:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
     permissions:
       id-token: write # requerido para la autenticación OIDC con pub.dev
       contents: read
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Verificar que el tag coincide con pubspec.yaml
-        run: |
-          set -euo pipefail
-          tag_version="${GITHUB_REF_NAME#v}"
-          pubspec_version=$(grep -oE '^version:[[:space:]]*[0-9]+\.[0-9]+\.[0-9]+' pubspec.yaml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          if [ "$tag_version" != "$pubspec_version" ]; then
-            echo "::error::El tag v$tag_version no coincide con pubspec.yaml ($pubspec_version)."
-            exit 1
-          fi
-
-      - name: Instalar dependencias
-        run: flutter pub get
-
-      - name: Analizar y probar
-        run: |
-          flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter test
-
-      - name: Publicar
-        run: flutter pub publish --force
